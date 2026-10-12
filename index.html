@@ -280,7 +280,8 @@ const $ = id => document.getElementById(id);
 const fmt = n => Number(n || 0).toLocaleString("th-TH");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let toastT;
-const hueOf = s => { let h=0; for(const ch of String(s)) h=(h*31+ch.codePointAt(0))>>>0; return [158,32,12,212,280,190,340,96,48,250][h%10]; };
+const HUES=[158,32,212,350,96,268,12,190,48,300];
+const hueOf = c => { const cats=[...new Set([...S.books.values()].map(b=>b.category))].sort((a,b)=>a.localeCompare(b,"th")); const i=cats.indexOf(c); return HUES[(i<0?cats.length:i)%HUES.length]; };
 const EMPTY_ART = '<svg viewBox="0 0 140 90" aria-hidden="true"><ellipse cx="70" cy="84" rx="56" ry="5" class="il-shadow"/><path d="M70 22C54 10 30 10 12 15v60c18-5 42-5 58 7z" class="il-paper"/><path d="M70 22c16-12 40-12 58-7v60c-18-5-42-5-58 7z" class="il-paper"/><path d="M24 30c12-3 26-3 36 2M24 42c12-3 26-3 36 2M24 54c12-3 26-3 36 2M80 32c10-5 24-5 36-2M80 44c10-5 24-5 36-2" class="il-line"/><circle cx="112" cy="18" r="9" class="il-2"/><path d="M108 18h8M112 14v8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
 function emptyMsg(el,msg){ el.innerHTML=EMPTY_ART+'<div>'+esc(msg)+'</div>'; }
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
@@ -449,7 +450,7 @@ const PDF_CSS=`.pdoc{padding:48px 56px;font:15px/1.6 "IBM Plex Sans Thai",Tahoma
 .pdoc .ph{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #20614f;padding-bottom:12px;margin-bottom:16px}
 .pdoc .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;margin-bottom:16px}
 .pdoc .kv b{font-weight:600}
-.pdoc table{width:100%;border-collapse:collapse}
+.pdoc table{width:100%;min-width:0;border-collapse:collapse}
 .pdoc th,.pdoc td{padding:7px 10px;border-bottom:1px solid #d5dcd9;text-align:left}
 .pdoc th{background:#e8ecea;font-size:13px}
 .pdoc .r{text-align:right}
@@ -458,11 +459,45 @@ const PDF_CSS=`.pdoc{padding:48px 56px;font:15px/1.6 "IBM Plex Sans Thai",Tahoma
 .pdoc tr.grand td{font-weight:700;background:#dcebe5;border-bottom:0}
 .pdoc .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:64px;text-align:center}
 .pdoc .sign div{border-top:1px dotted #111;padding-top:6px}
-.pdoc .bl{margin-top:14px;font-size:13px;color:#444}`;
+.pdoc .bl{margin-top:14px;font-size:13px;color:#444}
+.pdoc td.r,.pdoc tr.sub td.r{font:600 16px/1.4 "IBM Plex Mono",Consolas,monospace}
+.pdoc tr.sub td{background:#fafbfa;font-weight:600;color:#333;font-size:14px;border-bottom:2px solid #c9d3cf}
+.pdoc tr.grand td{font-size:16px}
+.pdoc tr.grand td.r{font-size:18px}
+.pdoc h3{font:700 17px/1.3 "Anuphan","IBM Plex Sans Thai",sans-serif;margin:22px 0 8px;padding-left:10px;border-left:5px solid #20614f}
+.pdoc .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:4px 0 6px}
+.pdoc .kpi{border:1.5px solid #20614f;border-radius:10px;padding:10px 14px;background:#f2f8f5}
+.pdoc .kpi span{display:block;font-size:13px;color:#3d4b46}
+.pdoc .kpi b{font:700 28px/1.2 "IBM Plex Mono",Consolas,monospace;color:#1d5e4f}
+.pdoc .kpi small{font-size:13px;color:#3d4b46;margin-left:4px}
+.pdoc table.cats td:first-child{font-weight:600}
+.pdoc table.cats .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+.pdoc table.cats tr.grand td{border-top:2px solid #20614f}`;
+function catSummary(items){
+  const m=new Map();
+  for(const i of items){ const k=i.category||"ไม่ระบุหมวด"; const o=m.get(k)||{titles:0,q:0,r:0}; o.titles++; o.q+=i.qty; o.r+=i.ret||0; m.set(k,o); }
+  const rows=[...m].sort((a,b)=>a[0].localeCompare(b[0],"th"));
+  const hasRet=items.some(i=>i.ret>0);
+  const tot=rows.reduce((s,[,o])=>({t:s.t+o.titles,q:s.q+o.q,r:s.r+o.r}),{t:0,q:0,r:0});
+  const nums=o=>hasRet?`<td class="r">${fmt(o.q)}</td><td class="r">${o.r?fmt(o.r):"–"}</td><td class="r">${fmt(o.q-o.r)}</td>`:`<td class="r">${fmt(o.q)}</td>`;
+  return `<table class="cats"><thead><tr><th>หมวดหนังสือ</th><th class="r">จำนวนรายการ</th>${hasRet?`<th class="r">เบิก (เล่ม)</th><th class="r">คืน (เล่ม)</th><th class="r">ใช้จริง (เล่ม)</th>`:`<th class="r">จำนวน (เล่ม)</th>`}</tr></thead><tbody>
+    ${rows.map(([c,o])=>`<tr><td><span class="sw" style="background:hsl(${hueOf(c)} 48% 44%)"></span>${esc(c)}</td><td class="r">${fmt(o.titles)}</td>${nums(o)}</tr>`).join("")}
+    <tr class="grand"><td>รวมทุกหมวด</td><td class="r">${fmt(tot.t)}</td>${nums(tot)}</tr></tbody></table>`;
+}
 function pdfDoc(title, kv, items, extra=""){
+  const q=items.reduce((s,i)=>s+i.qty,0), r=items.reduce((s,i)=>s+(i.ret||0),0);
+  const cats=new Set(items.map(i=>i.category)).size;
   return `<style>${PDF_CSS}</style><div class="pdoc">
     <div class="ph"><div><h1>${esc(title)}</h1><div>ระบบตัดสต็อกหนังสือ</div></div><div>พิมพ์วันที่ ${fdate(today())}</div></div>
     <div class="kv">${kv.map(([k,v])=>`<b>${esc(k)}</b><span>${esc(v)}</span>`).join("")}</div>
+    <div class="kpis">
+      <div class="kpi"><span>${r?"ใช้จริงทั้งหมด":"จำนวนเบิกทั้งหมด"}</span><b>${fmt(q-r)}</b><small>เล่ม</small></div>
+      <div class="kpi"><span>จำนวนหมวด</span><b>${fmt(cats)}</b><small>หมวด</small></div>
+      <div class="kpi"><span>จำนวนรายการหนังสือ</span><b>${fmt(items.length)}</b><small>รายการ</small></div>
+    </div>
+    <h3>สรุปยอดรวมแยกตามหมวด</h3>
+    ${catSummary(items)}
+    <h3>รายละเอียดแยกตามระดับชั้น</h3>
     ${levelTable(items)}${extra}
     <div class="sign"><div>ผู้เบิก</div><div>ผู้จ่ายหนังสือ</div></div></div>`;
 }
