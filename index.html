@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>ระบบตัดสต็อกหนังสือ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: ledger app — summary strip, toolbar with category chips, one stock table, side log on wide screens */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --sunk:#e8ecea; --line:#d5dcd9;
+  --fg:#1b2422; --muted:#5d6b67; --accent:#20614f; --accent-fg:#ffffff; --accent-soft:#dcebe5;
+  --warn:#9a5b00; --warn-soft:#fbecd2; --bad:#b02a2a; --bad-soft:#f8dddd; --good:#2c7a46;
+  --f-display:"Anuphan","IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Thai",system-ui,"Leelawadee UI",Tahoma,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121816; --surface:#1a2220; --sunk:#222c29; --line:#33403c;
+  --fg:#e6ecea; --muted:#9aa9a4; --accent:#5fbf9c; --accent-fg:#0d1a15; --accent-soft:#1f3a31;
+  --warn:#f0b35a; --warn-soft:#3a2c14; --bad:#f08080; --bad-soft:#3d1e1e; --good:#7fd39a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --surface:#1a2220; --sunk:#222c29; --line:#33403c;
+  --fg:#e6ecea; --muted:#9aa9a4; --accent:#5fbf9c; --accent-fg:#0d1a15; --accent-soft:#1f3a31;
+  --warn:#f0b35a; --warn-soft:#3a2c14; --bad:#f08080; --bad-soft:#3d1e1e; --good:#7fd39a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:17px/1.65 var(--f-body)}
+.wrap{max-width:1500px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:20px}
+h1,h2{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:1.9rem;font-weight:700}
+h2{font-size:1.2rem;font-weight:600}
+.head{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between}
+.head p{margin:2px 0 0;color:var(--muted)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:7px 14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:6px 12px;font-size:.92rem}
+.btn:focus-visible,input:focus-visible,select:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.notice{background:var(--warn-soft);color:var(--warn);border-radius:var(--r);padding:10px 14px}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px}
+.stat .k{font-size:.9rem;color:var(--muted);letter-spacing:.02em}
+.stat .v{font-family:var(--f-num);font-size:1.8rem;font-variant-numeric:tabular-nums;line-height:1.3}
+.stat .u{font-size:.8rem;color:var(--muted);margin-left:4px;font-family:var(--f-body)}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.search{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:var(--r);padding:7px 12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 14px;font-size:.95rem;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg);font-weight:600}
+.chip .c{color:var(--muted);margin-left:4px;font-family:var(--f-num);font-size:.8rem}
+
+.tablebox{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.85rem;font-weight:600;color:var(--muted);letter-spacing:.03em;background:var(--sunk);white-space:nowrap}
+th.r,td.r{text-align:right}
+tbody tr:last-child td{border-bottom:0}
+.cat{display:inline-block;font-size:.8rem;background:var(--sunk);border-radius:4px;padding:1px 8px;white-space:nowrap}
+.title{font-weight:600}
+.bar{height:6px;background:var(--sunk);border-radius:3px;margin-top:6px;overflow:hidden;width:120px;margin-left:auto}
+.bar i{display:block;height:100%;background:var(--accent)}
+.pill{font-size:.75rem;border-radius:999px;padding:1px 8px;margin-left:6px;white-space:nowrap}
+.pill.low{background:var(--warn-soft);color:var(--warn)}
+.pill.out{background:var(--bad-soft);color:var(--bad)}
+tr.low .bar i{background:var(--warn)}
+tr.out .bar i{background:var(--bad)}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+
+.log h2{padding:12px 14px;border-bottom:1px solid var(--line)}
+.log .h2b{border-top:1px solid var(--line)}
+.dr{display:flex;align-items:center;gap:6px;font-size:.88rem;color:var(--muted)}
+.dr input{padding:4px 8px;color:var(--fg)}
+table.matrix{min-width:520px}
+.matrix td.tot,.matrix th:nth-last-child(2){background:var(--accent-soft);font-weight:600}
+.matrix tfoot td{font-weight:600;background:var(--sunk);border-top:2px solid var(--line);border-bottom:0}
+.dim{color:var(--muted)}
+.log ol{list-style:none;margin:0;padding:0;max-height:480px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr))}
+.log li{padding:10px 14px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}
+.log li:last-child{border-bottom:0}
+.log .t{font-weight:500;overflow-wrap:anywhere}
+.log .q{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500}
+.log .q.out{color:var(--bad)} .log .q.in,.log .q.ret{color:var(--good)}
+.log .m{grid-column:1/-1;font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+
+.overlay{position:fixed;inset:0;background:rgba(10,16,14,.45);display:grid;place-items:center;padding:16px;z-index:10}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:min(560px,100%);padding:24px;display:grid;gap:14px;max-height:90vh;overflow:auto}
+.modal .sub{color:var(--muted);margin:-8px 0 0;font-size:.9rem}
+.field{display:grid;gap:4px}
+.field label{font-size:.85rem;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);background:var(--bg);border-radius:var(--r);padding:8px 12px;width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.err{color:var(--bad);font-size:.88rem;min-height:1.2em;margin:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:.9rem;z-index:20}
+@media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
+
+/* bill form */
+.modal.wide{width:min(820px,100%)}
+.lines{display:grid;gap:10px}
+.line{display:grid;grid-template-columns:minmax(0,1fr) 100px auto;gap:6px 8px;align-items:center}
+.line select,.line input{border:1px solid var(--line);background:var(--bg);border-radius:var(--r);padding:8px 10px;width:100%;min-width:0}
+.line .l-hint{grid-column:1/-1;font-size:.8rem;color:var(--muted);margin-top:-4px}
+.line .l-hint.bad{color:var(--bad)}
+.lines-head{display:flex;justify-content:space-between;align-items:baseline;font-size:.85rem;color:var(--muted)}
+.billsum{margin:0;font-weight:600}
+
+/* bills */
+.bills{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:14px;padding:14px}
+.bill{border:1px solid var(--line);border-radius:var(--r);min-width:0;display:grid;align-content:start}
+.bill-h{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:10px 12px;border-bottom:1px solid var(--line)}
+.bill-h .no{font-family:var(--f-num);font-size:.85rem;color:var(--accent);font-weight:500}
+.bill-h .who{font-weight:600;font-family:var(--f-display)}
+.bill-h .meta{font-size:.82rem;color:var(--muted);flex-basis:100%}
+.bill-h .bacts{margin-left:auto;display:flex;gap:6px}
+.bill table,.psum table{min-width:0}
+.bill td,.bill th,.psum td,.psum th{padding:8px 14px}
+tr.lv td{background:var(--sunk);font-weight:600;font-size:.85rem}
+tr.sub td{font-size:.85rem;color:var(--muted);border-bottom:1px solid var(--line)}
+tr.grand td{font-weight:700;background:var(--accent-soft)}
+.psum{margin:14px 14px 0;border:1px solid var(--accent);border-radius:var(--r);overflow:hidden}
+.psum .bill-h{background:var(--accent-soft)}
+.pdf-stage{position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#111}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>ระบบตัดสต็อกหนังสือ</h1>
+      <p>บันทึกหนังสือแต่ละหมวด บันทึกวันที่รับเข้าและส่งออก ตัดจำนวนที่ใช้ไป และดูยอดคงเหลือ</p>
+    </div>
+    <div class="acts" id="topActs"><button class="btn" id="addBookBtn">+ เพิ่มหนังสือ</button><button class="btn primary" id="cutBtn">ตัดสต็อก</button></div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="stats" aria-label="สรุปสต็อก">
+    <div class="stat"><div class="k">รายการหนังสือ</div><div class="v" id="sTitles">0<span class="u">รายการ</span></div></div>
+    <div class="stat"><div class="k">จำนวนทั้งหมด</div><div class="v" id="sTotal">0<span class="u">เล่ม</span></div></div>
+    <div class="stat"><div class="k">ใช้ไป</div><div class="v" id="sUsed">0<span class="u">เล่ม</span></div></div>
+    <div class="stat"><div class="k">คงเหลือ</div><div class="v" id="sLeft">0<span class="u">เล่ม</span></div></div>
+  </section>
+
+  <div class="main">
+    <section class="panel">
+      <div class="toolbar">
+        <input class="search" id="q" type="search" placeholder="ค้นหาชื่อหนังสือหรือหมวด" aria-label="ค้นหา">
+        <select class="btn" id="sort" aria-label="เรียงลำดับ">
+          <option value="cat">เรียงตามหมวด</option>
+          <option value="left">คงเหลือน้อยก่อน</option>
+          <option value="title">เรียงตามชื่อ</option>
+        </select>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="tablebox">
+        <table>
+          <thead><tr>
+            <th>หมวดหนังสือ</th><th>ชื่อหนังสือ</th>
+            <th class="r">ทั้งหมดในสต็อก</th><th class="r">ใช้ไป</th><th class="r">คงเหลือ</th><th>รับเข้าล่าสุด</th><th>ส่งออกล่าสุด</th><th class="r"><span hidden>จัดการ</span></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty">กำลังโหลดข้อมูล…</div>
+    </section>
+  </div>
+
+  <section class="panel" id="billsPanel">
+    <div class="toolbar">
+      <h2 style="margin-right:auto">ใบเบิกหนังสือ แยกตามระดับชั้น</h2>
+      <select class="btn" id="bWho" aria-label="เลือกผู้เบิก"></select>
+      <label class="dr" for="bFrom">ตั้งแต่ <input class="btn" id="bFrom" type="date"></label>
+      <label class="dr" for="bTo">ถึง <input class="btn" id="bTo" type="date"></label>
+      <button class="btn sm" type="button" id="bClear">ทุกช่วงเวลา</button>
+    </div>
+    <div id="psum"></div>
+    <div class="bills" id="bills"></div>
+    <div class="empty" id="bEmpty">ยังไม่มีใบเบิก กด “ตัดสต็อก” ด้านบนเพื่อออกใบเบิกใบแรก</div>
+  </section>
+
+  <section class="panel log">
+    <h2>ประวัติการเคลื่อนไหว</h2>
+    <ol id="log"></ol>
+    <div class="empty" id="logEmpty">ยังไม่มีการรับเข้าหรือส่งออก</div>
+  </section>
+</div>
+<div class="pdf-stage" id="pdfStage" aria-hidden="true"></div>
+
+<div class="overlay" id="ov" hidden>
+  <form class="modal" id="form" novalidate></form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const S = { books: new Map(), moves: [], cat: "ทั้งหมด", q: "", sort: "cat", canWrite: true, db: null, local: false };
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n || 0).toLocaleString("th-TH");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let toastT;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
+
+function computed(){
+  const agg = new Map();
+  for (const b of S.books.values()) agg.set(b.id, { ...b, inQty:0, used:0, lastIn:b.receivedDate||"", lastOut:"" });
+  for (const m of S.moves){ const a=agg.get(m.bookId); if(!a) continue; const d=moveDate(m); if(m.kind==="out"){ a.used+=m.qty; if(d>a.lastOut) a.lastOut=d; } else if(m.kind==="ret"){ a.used-=m.qty; } else { a.inQty+=m.qty; if(d>a.lastIn) a.lastIn=d; } }
+  for (const a of agg.values()){ a.total = (a.stock||0) + a.inQty; a.left = a.total - a.used; }
+  return [...agg.values()];
+}
+function status(a){ if(a.left<=0) return "out"; if(a.left <= Math.max(5, Math.ceil(a.total*0.1))) return "low"; return ""; }
+
+function render(){
+  const all = computed();
+  const sum = all.reduce((s,a)=>(s.t+=a.total,s.u+=a.used,s.l+=a.left,s),{t:0,u:0,l:0});
+  $("sTitles").firstChild.nodeValue = fmt(all.length);
+  $("sTotal").firstChild.nodeValue = fmt(sum.t);
+  $("sUsed").firstChild.nodeValue = fmt(sum.u);
+  $("sLeft").firstChild.nodeValue = fmt(sum.l);
+
+  const cats = new Map();
+  for (const a of all) cats.set(a.category, (cats.get(a.category)||0)+1);
+  if (S.cat!=="ทั้งหมด" && !cats.has(S.cat)) S.cat="ทั้งหมด";
+  const catList = [["ทั้งหมด", all.length], ...[...cats].sort((x,y)=>x[0].localeCompare(y[0],"th"))];
+  $("chips").innerHTML = catList.map(([c,n])=>`<button class="chip" type="button" data-cat="${esc(c)}" aria-pressed="${c===S.cat}">${esc(c)}<span class="c">${n}</span></button>`).join("");
+
+  const q = S.q.trim().toLowerCase();
+  let rows = all.filter(a => (S.cat==="ทั้งหมด"||a.category===S.cat) && (!q || (a.title+" "+a.category).toLowerCase().includes(q)));
+  const th = (x,y)=>x.localeCompare(y,"th");
+  rows.sort(S.sort==="left" ? (a,b)=>a.left-b.left || th(a.title,b.title)
+          : S.sort==="title" ? (a,b)=>th(a.title,b.title)
+          : (a,b)=>th(a.category,b.category) || th(a.title,b.title));
+
+  $("rows").innerHTML = rows.map(a=>{
+    const st = status(a), pct = a.total>0 ? Math.max(0,Math.min(100,a.left/a.total*100)) : 0;
+    const pill = st==="out" ? `<span class="pill out">หมด</span>` : st==="low" ? `<span class="pill low">ใกล้หมด</span>` : "";
+    const acts = S.canWrite ? `<div class="acts">
+        <button class="btn sm primary" type="button" data-act="out" data-id="${a.id}" ${a.left<=0?"disabled":""}>ตัดสต็อก</button>
+        <button class="btn sm" type="button" data-act="in" data-id="${a.id}">รับเข้า</button>
+        <button class="btn sm" type="button" data-act="edit" data-id="${a.id}" aria-label="แก้ไข ${esc(a.title)}">แก้ไข</button></div>` : "";
+    return `<tr class="${st}">
+      <td><span class="cat">${esc(a.category)}</span></td>
+      <td class="title">${esc(a.title)}${pill}</td>
+      <td class="r num">${fmt(a.total)}</td>
+      <td class="r num">${fmt(a.used)}</td>
+      <td class="r"><span class="num" style="font-weight:600">${fmt(a.left)}</span><div class="bar"><i style="width:${pct}%"></i></div></td>
+      <td class="num" style="white-space:nowrap">${fdate(a.lastIn)}</td><td class="num" style="white-space:nowrap">${fdate(a.lastOut)}</td>
+      <td class="r">${acts}</td></tr>`;
+  }).join("");
+  const e=$("empty");
+  e.hidden = rows.length>0;
+  e.textContent = all.length===0 ? "ยังไม่มีหนังสือในสต็อก กด “+ เพิ่มหนังสือ” เพื่อเริ่มบันทึกรายการแรก" : "ไม่พบหนังสือที่ตรงกับการค้นหา";
+
+  const recent = [...S.moves].sort((a,b)=>moveDate(b).localeCompare(moveDate(a)) || (b.at||"").localeCompare(a.at||"")).slice(0,60);
+  $("log").innerHTML = recent.map(m=>{
+    const b=S.books.get(m.bookId); const when = fdate(moveDate(m));
+    return `<li><span class="t">${esc(b?b.title:"(หนังสือถูกลบ)")}</span>
+      <span class="q ${m.kind}">${m.kind==="out"?"−":"+"}${fmt(m.qty)}</span>
+      <span class="m">${m.kind==="ret"?"คืนเข้าสต็อก"+(m.by?" จาก <b>"+esc(m.by)+"</b>":"")+(m.billKey&&!m.billKey.startsWith("L|")?" · ใบเบิก "+esc(m.billKey):""):m.kind==="out"?"ตัดสต็อก"+(m.by?" → <b>"+esc(m.by)+"</b>":"")+(m.billNo?" · ใบเบิก "+esc(m.billNo):""):"รับเข้า"} · ${when}${m.note?" · "+esc(m.note):""}</span></li>`;
+  }).join("");
+  $("logEmpty").hidden = recent.length>0;
+
+  renderBills();
+  $("topActs").hidden = !S.canWrite;
+}
+
+/* ---------- levels & bills ---------- */
+const TH_DIGITS="๐๑๒๓๔๕๖๗๘๙";
+function levelOf(title){
+  const t=String(title||"").replace(/[๐-๙]/g,d=>TH_DIGITS.indexOf(d)).replace(/\s+/g," ");
+  let m;
+  if((m=t.match(/อนุบาล\s*(?:ปีที่\s*)?(\d)/))) return "อ."+m[1];
+  if((m=t.match(/ประถม(?:ศึกษา)?\s*(?:ปีที่\s*)?(\d)/))) return "ป."+m[1];
+  if((m=t.match(/มัธยม(?:ศึกษา)?\s*(?:ปีที่\s*)?(\d)/))) return "ม."+m[1];
+  if((m=t.match(/(อ|ป|ม)\s?\.\s?([1-6])(?!\d)/))) return m[1]+"."+m[2];
+  if((m=t.match(/(?:^|[^ก-๙])(ป|ม)\s?([1-6])(?!\d)/))) return m[1]+"."+m[2];
+  return "ไม่ระบุระดับ";
+}
+function levelKey(l){ const m=l.match(/^(อ|ป|ม)\.(\d)$/); return m ? "อปม".indexOf(m[1])*10+Number(m[2]) : 99; }
+
+function getBills(){
+  const map=new Map();
+  for(const m of S.moves){
+    if(m.kind!=="out") continue;
+    const d=moveDate(m), key=m.billNo || "L|"+(m.by||"")+"|"+d;
+    let b=map.get(key);
+    if(!b){ b={key,no:m.billNo||"",by:m.by||"ไม่ระบุผู้เบิก",date:d,note:m.note||"",at:m.at||"",items:[]}; map.set(key,b); }
+    const bk=S.books.get(m.bookId);
+    const ex=b.items.find(i=>i.bookId===m.bookId);
+    if(ex) ex.qty+=m.qty;
+    else b.items.push({bookId:m.bookId,title:bk?bk.title:"(หนังสือถูกลบ)",category:bk?bk.category:"",level:levelOf(bk?bk.title:""),qty:m.qty,ret:0});
+    if((m.at||"")<b.at) b.at=m.at;
+  }
+  for(const m of S.moves){
+    if(m.kind!=="ret") continue;
+    const b=map.get(m.billKey); const it=b&&b.items.find(i=>i.bookId===m.bookId);
+    if(it) it.ret+=m.qty;
+  }
+  const list=[...map.values()];
+  for(const b of list){ b.issued=b.items.reduce((s,i)=>s+i.qty,0); b.returned=b.items.reduce((s,i)=>s+i.ret,0); b.total=b.issued-b.returned; }
+  return list.sort((a,b)=>b.date.localeCompare(a.date)||b.at.localeCompare(a.at));
+}
+function groupByLevel(items){
+  const g=new Map();
+  for(const i of items){ const k=i.level; if(!g.has(k)) g.set(k,[]); g.get(k).push(i); }
+  return [...g].sort((a,b)=>levelKey(a[0])-levelKey(b[0])||a[0].localeCompare(b[0],"th"))
+    .map(([lv,its])=>[lv,its.sort((x,y)=>x.title.localeCompare(y.title,"th"))]);
+}
+function mergeItems(items){
+  const m=new Map();
+  for(const i of items){ const k=i.title+"|"+i.category; const o=m.get(k)||{...i,qty:0,ret:0}; o.qty+=i.qty; o.ret+=i.ret||0; m.set(k,o); }
+  return [...m.values()];
+}
+function levelTable(items, withCat=true){
+  const groups=groupByLevel(items);
+  const hasRet=items.some(i=>i.ret>0);
+  const lead=withCat?2:1, cols=lead+(hasRet?3:1);
+  const nums=(q,r)=>hasRet ? `<td class="r num">${fmt(q)}</td><td class="r num">${r?fmt(r):"–"}</td><td class="r num">${fmt(q-r)}</td>` : `<td class="r num">${fmt(q)}</td>`;
+  const sumQ=its=>its.reduce((s,i)=>s+i.qty,0), sumR=its=>its.reduce((s,i)=>s+(i.ret||0),0);
+  return `<table><thead><tr><th>ชื่อหนังสือ</th>${withCat?"<th>หมวด</th>":""}${hasRet?`<th class="r">เบิก</th><th class="r">คืน</th><th class="r">ใช้จริง (เล่ม)</th>`:`<th class="r">จำนวน (เล่ม)</th>`}</tr></thead><tbody>
+    ${groups.map(([lv,its])=>`<tr class="lv"><td colspan="${cols}">ระดับ ${esc(lv)}</td></tr>
+      ${its.map(i=>`<tr><td>${esc(i.title)}</td>${withCat?`<td>${esc(i.category)}</td>`:""}${nums(i.qty,i.ret||0)}</tr>`).join("")}
+      <tr class="sub"><td colspan="${lead}">รวมระดับ ${esc(lv)}</td>${nums(sumQ(its),sumR(its))}</tr>`).join("")}
+    <tr class="grand"><td colspan="${lead}">รวมทั้งสิ้น</td>${nums(sumQ(items),sumR(items))}</tr></tbody></table>`;
+}
+function filteredBills(){
+  const from=$("bFrom").value, to=$("bTo").value, who=$("bWho").value;
+  return getBills().filter(b=>(!from||b.date>=from)&&(!to||b.date<=to)&&(!who||b.by===who));
+}
+function renderBills(){
+  const all=getBills();
+  const sel=$("bWho"), cur=sel.value;
+  const names=[...new Set(all.map(b=>b.by))].sort((x,y)=>x.localeCompare(y,"th"));
+  sel.innerHTML=`<option value="">ผู้เบิกทุกคน</option>`+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  sel.value = names.includes(cur) ? cur : "";
+  const list=filteredBills();
+  $("bills").innerHTML=list.map(b=>`<article class="bill">
+    <div class="bill-h"><span class="no">${b.no?"เลขที่ "+esc(b.no):"บิลเดิม"}</span><span class="who">${esc(b.by)}</span>
+      <span class="bacts">${S.canWrite&&b.total>0?`<button class="btn sm" type="button" data-ret="${esc(b.key)}">คืนหนังสือ</button>`:""}
+      <button class="btn sm" type="button" data-pdf="bill" data-key="${esc(b.key)}">ไฟล์ PDF</button></span>
+      <span class="meta">วันที่ ${fdate(b.date)} · ${fmt(b.items.length)} รายการ · เบิก ${fmt(b.issued)} เล่ม${b.returned?` · คืนแล้ว ${fmt(b.returned)} · ใช้จริง ${fmt(b.total)} เล่ม`:""}${b.note?" · "+esc(b.note):""}</span></div>
+    <div class="tablebox">${levelTable(b.items)}</div></article>`).join("");
+  const who=sel.value;
+  if(who && list.length){
+    const items=mergeItems(list.flatMap(b=>b.items));
+    $("psum").innerHTML=`<div class="psum"><div class="bill-h"><span class="who">สรุปรวมของ ${esc(who)}</span>
+      <span class="bacts"><button class="btn sm primary" type="button" data-pdf="person">ไฟล์ PDF สรุป</button></span>
+      <span class="meta">${fmt(list.length)} ใบเบิก · ใช้จริงรวม ${fmt(items.reduce((s,i)=>s+i.qty-(i.ret||0),0))} เล่ม${rangeText()}</span></div>
+      <div class="tablebox">${levelTable(items)}</div></div>`;
+  } else $("psum").innerHTML="";
+  $("bEmpty").hidden=list.length>0;
+  $("bEmpty").textContent = all.length ? "ไม่มีใบเบิกตามเงื่อนไขที่เลือก" : "ยังไม่มีใบเบิก กด “ตัดสต็อก” ด้านบนเพื่อออกใบเบิกใบแรก";
+}
+function rangeText(){ const f=$("bFrom").value,t=$("bTo").value; return f||t ? ` · ช่วง ${f?fdate(f):"เริ่มต้น"} ถึง ${t?fdate(t):"ปัจจุบัน"}` : ""; }
+function nextBillNo(date){
+  const [y,m,d]=date.split("-"); const prefix=String((Number(y)+543)%100).padStart(2,"0")+m+d+"-";
+  const used=new Set(S.moves.map(x=>x.billNo).filter(n=>n&&n.startsWith(prefix)));
+  let n=used.size+1; while(used.has(prefix+String(n).padStart(2,"0"))) n++;
+  return prefix+String(n).padStart(2,"0");
+}
+
+/* ---------- PDF ---------- */
+const PDF_CSS=`.pdoc{padding:48px 56px;font:15px/1.6 "IBM Plex Sans Thai",Tahoma,sans-serif;color:#111;background:#fff}
+.pdoc h1{font:700 24px/1.3 "Anuphan","IBM Plex Sans Thai",sans-serif;margin:0 0 4px}
+.pdoc .ph{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #20614f;padding-bottom:12px;margin-bottom:16px}
+.pdoc .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;margin-bottom:16px}
+.pdoc .kv b{font-weight:600}
+.pdoc table{width:100%;border-collapse:collapse}
+.pdoc th,.pdoc td{padding:7px 10px;border-bottom:1px solid #d5dcd9;text-align:left}
+.pdoc th{background:#e8ecea;font-size:13px}
+.pdoc .r{text-align:right}
+.pdoc tr.lv td{background:#f1f4f2;font-weight:600}
+.pdoc tr.sub td{color:#555;font-size:13px}
+.pdoc tr.grand td{font-weight:700;background:#dcebe5;border-bottom:0}
+.pdoc .sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:64px;text-align:center}
+.pdoc .sign div{border-top:1px dotted #111;padding-top:6px}
+.pdoc .bl{margin-top:14px;font-size:13px;color:#444}`;
+function pdfDoc(title, kv, items, extra=""){
+  return `<style>${PDF_CSS}</style><div class="pdoc">
+    <div class="ph"><div><h1>${esc(title)}</h1><div>ระบบตัดสต็อกหนังสือ</div></div><div>พิมพ์วันที่ ${fdate(today())}</div></div>
+    <div class="kv">${kv.map(([k,v])=>`<b>${esc(k)}</b><span>${esc(v)}</span>`).join("")}</div>
+    ${levelTable(items)}${extra}
+    <div class="sign"><div>ผู้เบิก</div><div>ผู้จ่ายหนังสือ</div></div></div>`;
+}
+const libs={};
+function loadScript(src){ return libs[src] ||= new Promise((ok,no)=>{ const s=document.createElement("script"); s.src=src; s.onload=ok; s.onerror=()=>{delete libs[src]; no(new Error("load "+src));}; document.head.appendChild(s); }); }
+async function buildPdf(html){
+  await Promise.all([
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")]);
+  const stage=$("pdfStage"); stage.innerHTML=html;
+  try{
+    if(document.fonts&&document.fonts.ready) await document.fonts.ready;
+    const canvas=await html2canvas(stage,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false,windowWidth:794});
+    const pdf=new window.jspdf.jsPDF({unit:"pt",format:"a4"});
+    const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+    const pagePx=Math.floor(canvas.width*ph/pw);
+    for(let y=0,i=0;y<canvas.height;y+=pagePx,i++){
+      const h=Math.min(pagePx,canvas.height-y), c=document.createElement("canvas");
+      c.width=canvas.width; c.height=h; const ctx=c.getContext("2d");
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,c.width,h); ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);
+      if(i) pdf.addPage();
+      pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,pw,h*pw/canvas.width);
+    }
+    return pdf.output("blob");
+  } finally { stage.innerHTML=""; }
+}
+async function savePdf(btn, html, filename){
+  const dl = window.claude ? await window.claude.use("downloads") : {
+    save: async ({filename,data})=>{ const u=URL.createObjectURL(data), a=document.createElement("a"); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),5000); return {status:"saved"}; } };
+  if(!dl){ toast("มุมมองนี้ดาวน์โหลดไฟล์ไม่ได้ ลองเปิดหน้านี้ใน claude.ai"); return; }
+  const label=btn.textContent; btn.disabled=true; btn.textContent="กำลังสร้างไฟล์…";
+  try{
+    const blob=await buildPdf(html);
+    await dl.save({filename,data:blob});
+    toast("บันทึกไฟล์ PDF แล้ว");
+  }catch(e){
+    if(e&&e.code==="declined") return;
+    console.error(e); toast(e&&e.code==="rate_limited"?"มีหน้าต่างดาวน์โหลดเปิดอยู่ ลองอีกครั้ง":"สร้างไฟล์ PDF ไม่สำเร็จ ลองอีกครั้ง");
+  }finally{ btn.disabled=false; btn.textContent=label; }
+}
+function safeName(s){ return String(s).replace(/[\\/:*?"<>|]+/g," ").trim().slice(0,60); }
+$("billsPanel").onclick=e=>{
+  const rb=e.target.closest("button[data-ret]");
+  if(rb){ const b=getBills().find(x=>x.key===rb.dataset.ret); if(b) returnForm(b); return; }
+  const btn=e.target.closest("button[data-pdf]"); if(!btn) return;
+  const list=filteredBills();
+  if(btn.dataset.pdf==="bill"){
+    const b=list.find(x=>x.key===btn.dataset.key); if(!b) return;
+    const kv=[["เลขที่ใบเบิก",b.no||"–"],["ผู้เบิก",b.by],["วันที่เบิก",fdate(b.date)],["จำนวน",`${fmt(b.items.length)} รายการ เบิก ${fmt(b.issued)} เล่ม`+(b.returned?` คืน ${fmt(b.returned)} เล่ม ใช้จริง ${fmt(b.total)} เล่ม`:"")]];
+    if(b.note) kv.push(["หมายเหตุ",b.note]);
+    savePdf(btn, pdfDoc("ใบเบิกหนังสือ",kv,b.items), `ใบเบิก ${safeName(b.no||b.date)} ${safeName(b.by)}.pdf`);
+  } else {
+    const who=$("bWho").value; const items=mergeItems(list.flatMap(b=>b.items));
+    const f=$("bFrom").value,t=$("bTo").value;
+    const kv=[["ผู้เบิก",who],["ช่วงวันที่",f||t?`${f?fdate(f):"เริ่มต้น"} ถึง ${t?fdate(t):"ปัจจุบัน"}`:"ทุกช่วงเวลา"],["จำนวนใบเบิก",`${fmt(list.length)} ใบ`],["ใช้จริงรวม",`${fmt(items.reduce((s,i)=>s+i.qty-(i.ret||0),0))} เล่ม`]];
+    const extra=`<div class="bl">ใบเบิกที่รวมไว้: ${list.map(b=>esc((b.no||"บิลเดิม")+" ("+fdate(b.date)+")")).join(", ")}</div>`;
+    savePdf(btn, pdfDoc("สรุปการเบิกหนังสือ",kv,items,extra), `สรุปการเบิก ${safeName(who)}.pdf`);
+  }
+};
+["bWho","bFrom","bTo"].forEach(id=>$(id).onchange=renderBills);
+$("bClear").onclick=()=>{ $("bFrom").value=""; $("bTo").value=""; renderBills(); };
+
+/* ---------- return books from a bill ---------- */
+function returnForm(bill){
+  const items=bill.items.filter(i=>i.qty-i.ret>0 && S.books.has(i.bookId));
+  if(!items.length){ toast("ใบเบิกนี้คืนครบแล้ว"); return; }
+  openModal(`
+    <h2>คืนหนังสือเข้าสต็อก</h2>
+    <p class="sub">${bill.no?"ใบเบิกเลขที่ "+esc(bill.no)+" · ":""}${esc(bill.by)} · เบิกวันที่ ${fdate(bill.date)}</p>
+    <div class="lines-head"><span>รายการที่คืนได้</span><span>จำนวนที่คืน (เล่ม)</span></div>
+    <div class="lines">${items.map((i,n)=>`<div class="line" style="grid-template-columns:minmax(0,1fr) 84px">
+      <label for="r-${n}"><b>${esc(i.title)}</b><br><span class="dim" style="font-size:.82rem">ระดับ ${esc(i.level)} · เบิก ${fmt(i.qty)}${i.ret?` · คืนแล้ว ${fmt(i.ret)}`:""} · คืนได้อีก ${fmt(i.qty-i.ret)}</span></label>
+      <input id="r-${n}" class="r-qty" data-book="${i.bookId}" data-max="${i.qty-i.ret}" type="number" inputmode="numeric" min="0" max="${i.qty-i.ret}" step="1" value="0"></div>`).join("")}</div>
+    <div><button class="btn sm" type="button" id="retAll">คืนทั้งหมด</button></div>
+    <div class="row2">
+      <div class="field"><label for="r-date">วันที่คืน</label><input id="r-date" name="date" type="date" value="${today()}"></div>
+      <div class="field"><label for="r-note">หมายเหตุ (ไม่บังคับ)</label><input id="r-note" name="note" placeholder="เช่น เหลือจากการสอน" autocomplete="off"></div>
+    </div>
+    <p class="billsum" id="retSum"></p>
+    <p class="err" role="alert"></p>
+    <div class="mfoot">
+      <button class="btn" type="button" data-close>ยกเลิก</button>
+      <button class="btn primary" type="submit">บันทึกการคืน</button>
+    </div>`,
+  async f=>{
+    const date=f.elements.date.value; if(!date) fail("กรุณาระบุวันที่คืน");
+    if(date<bill.date) fail("วันที่คืนต้องไม่ก่อนวันที่เบิก");
+    const fresh=getBills().find(x=>x.key===bill.key);
+    const rows=[...f.querySelectorAll(".r-qty")].map(i=>({id:i.dataset.book,v:i.value.trim()}));
+    const ret=[];
+    for(const r of rows){
+      if(r.v===""||r.v==="0") continue;
+      if(!/^\d+$/.test(r.v)) fail("จำนวนที่คืนต้องเป็นจำนวนเต็ม");
+      const it=fresh&&fresh.items.find(x=>x.bookId===r.id); const can=it?it.qty-it.ret:0, q=parseInt(r.v,10);
+      if(q>can) fail(`“${it?it.title:"หนังสือ"}” คืนได้อีกไม่เกิน ${fmt(can)} เล่ม`);
+      ret.push([r.id,q]);
+    }
+    if(!ret.length) fail("กรุณาใส่จำนวนที่คืนอย่างน้อย 1 รายการ");
+    const note=f.elements.note.value.trim().slice(0,200), at=new Date().toISOString();
+    for(const [id,q] of ret) await addMove({bookId:id,kind:"ret",qty:q,date,by:bill.by,billKey:bill.key,note,at});
+    return `คืนหนังสือเข้าสต็อก ${fmt(ret.reduce((s,[,q])=>s+q,0))} เล่มแล้ว`;
+  });
+  const f=$("form"); f.classList.add("wide");
+  const upd=()=>{ const t=[...f.querySelectorAll(".r-qty")].reduce((s,i)=>s+(parseInt(i.value,10)||0),0); $("retSum").textContent=t?`คืนรวม ${fmt(t)} เล่ม`:""; };
+  f.addEventListener("input",upd);
+  $("retAll").onclick=()=>{ f.querySelectorAll(".r-qty").forEach(i=>i.value=i.dataset.max); upd(); };
+  f.querySelector(".r-qty").focus();
+}
+
+/* ---------- bill form (cut stock) ---------- */
+function billForm(a0){
+  const books = computed().filter(x=>x.left>0).sort((x,y)=>x.category.localeCompare(y.category,"th")||x.title.localeCompare(y.title,"th"));
+  if(!books.length){ toast("ไม่มีหนังสือที่ยังมีคงเหลือให้ตัดสต็อก"); return; }
+  const people=[...new Set(S.moves.map(m=>m.by).filter(Boolean))].sort((x,y)=>x.localeCompare(y,"th"));
+  const opts=sel=>`<option value="">เลือกหนังสือ…</option>`+books.map(b=>`<option value="${b.id}" ${b.id===sel?"selected":""}>${esc(b.title)} · ${esc(b.category)} (คงเหลือ ${fmt(b.left)})</option>`).join("");
+  openModal(`
+    <h2>ตัดสต็อก · ใบเบิกหนังสือ</h2>
+    <div class="row2">
+      <div class="field"><label for="m-by">ชื่อผู้เบิก (อาจารย์)</label>
+        <input id="m-by" name="by" list="bylist" placeholder="เช่น อ.สมชาย ใจดี" autocomplete="off">
+        <datalist id="bylist">${people.map(d=>`<option value="${esc(d)}">`).join("")}</datalist></div>
+      <div class="field"><label for="m-date">วันที่เบิก</label>
+        <input id="m-date" name="date" type="date" value="${today()}"></div>
+    </div>
+    <div class="lines-head"><span>รายการหนังสือ</span><span>จำนวน (เล่ม)</span></div>
+    <div class="lines" id="lines"></div>
+    <div><button class="btn sm" type="button" id="addLine">+ เพิ่มรายการ</button></div>
+    <div class="field"><label for="m-note">หมายเหตุ (ไม่บังคับ)</label>
+      <input id="m-note" name="note" placeholder="เช่น ใช้สอนภาคเรียนที่ 2" autocomplete="off"></div>
+    <p class="billsum" id="billSum"></p>
+    <p class="err" role="alert"></p>
+    <div class="mfoot">
+      <button class="btn" type="button" data-close>ยกเลิก</button>
+      <button class="btn primary" type="submit">บันทึกใบเบิก</button>
+    </div>`,
+  async f=>{
+    const by=f.elements.by.value.trim().replace(/\s+/g," ").slice(0,100);
+    if(!by) fail("กรุณาระบุชื่อผู้เบิก");
+    const date=f.elements.date.value; if(!date) fail("กรุณาระบุวันที่เบิก");
+    const lines=[...f.querySelectorAll(".line")].map(l=>({id:l.querySelector(".l-book").value,q:l.querySelector(".l-qty").value.trim()})).filter(l=>l.id||l.q!=="");
+    if(!lines.length) fail("กรุณาเพิ่มหนังสืออย่างน้อย 1 รายการ");
+    const want=new Map();
+    for(const l of lines){
+      if(!l.id) fail("มีรายการที่ยังไม่ได้เลือกหนังสือ");
+      if(!/^\d+$/.test(l.q)||parseInt(l.q,10)<1) fail("จำนวนแต่ละรายการต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
+      want.set(l.id,(want.get(l.id)||0)+parseInt(l.q,10));
+    }
+    const now=computed();
+    for(const [id,q] of want){ const b=now.find(x=>x.id===id); if(!b) fail("ไม่พบหนังสือบางรายการ"); if(q>b.left) fail(`“${b.title}” คงเหลือเพียง ${fmt(b.left)} เล่ม`); }
+    const billNo=nextBillNo(date), note=f.elements.note.value.trim().slice(0,200), at=new Date().toISOString();
+    for(const [id,q] of want) await addMove({bookId:id,kind:"out",qty:q,date,by,billNo,note,at});
+    const tot=[...want.values()].reduce((s,q)=>s+q,0);
+    return `บันทึกใบเบิกเลขที่ ${billNo} · ${fmt(want.size)} รายการ ${fmt(tot)} เล่ม`;
+  });
+  const f=$("form"); f.classList.add("wide");
+  const box=$("lines");
+  const update=()=>{
+    const now=computed(), want=new Map(); let tot=0, n=0;
+    const ls=[...box.querySelectorAll(".line")];
+    for(const l of ls){ const id=l.querySelector(".l-book").value, q=parseInt(l.querySelector(".l-qty").value,10)||0; if(id){ want.set(id,(want.get(id)||0)+q); tot+=q; n++; } }
+    for(const l of ls){
+      const id=l.querySelector(".l-book").value, h=l.querySelector(".l-hint"), b=now.find(x=>x.id===id);
+      if(!b){ h.textContent=""; h.classList.remove("bad"); continue; }
+      const after=b.left-(want.get(id)||0);
+      h.textContent=`ระดับ ${levelOf(b.title)} · คงเหลือหลังเบิก ${fmt(after)} เล่ม`; h.classList.toggle("bad",after<0);
+    }
+    $("billSum").textContent = n ? `รวม ${fmt(n)} รายการ ${fmt(tot)} เล่ม` : "";
+  };
+  const addLine=sel=>{
+    const d=document.createElement("div"); d.className="line";
+    d.innerHTML=`<select class="l-book" aria-label="หนังสือ">${opts(sel)}</select>
+      <input class="l-qty" type="number" inputmode="numeric" min="1" step="1" value="1" aria-label="จำนวน (เล่ม)">
+      <button class="btn sm l-del" type="button" aria-label="ลบรายการนี้">ลบ</button><span class="l-hint"></span>`;
+    box.appendChild(d); update(); return d;
+  };
+  box.addEventListener("input",update); box.addEventListener("change",update);
+  box.addEventListener("click",e=>{ const x=e.target.closest(".l-del"); if(!x) return; x.closest(".line").remove(); if(!box.children.length) addLine(""); update(); });
+  $("addLine").onclick=()=>addLine("").querySelector("select").focus();
+  addLine(a0?a0.id:"");
+  $("m-by").focus();
+}
+
+/* ---------- storage ---------- */
+const today = () => { const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+const fdate = iso => { if(!iso) return "–"; const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("th-TH",{day:"numeric",month:"short",year:"2-digit"}); };
+const moveDate = m => m.date || (m.at||"").slice(0,10);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const LS_KEY="book-stock-v1";
+function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({books:[...S.books.values()],moves:S.moves})); }catch(_){ } }
+function restore(){ try{ const d=JSON.parse(localStorage.getItem(LS_KEY)||"null"); if(d){ S.books=new Map((d.books||[]).map(b=>[b.id,b])); S.moves=d.moves||[]; return true; } }catch(_){ } return false; }
+async function saveBook(id, data){
+  if (S.local){ S.books.set(id,{id,...data}); persist(); render(); return; }
+  await S.db.doc("books/"+id).set(data);
+}
+async function addMove(data){
+  if (S.local){ S.moves.push({id:uid(),...data}); persist(); render(); return; }
+  await S.db.collection("moves").doc(uid()).set(data);
+}
+async function removeBook(id){
+  const mine = S.moves.filter(m=>m.bookId===id);
+  if (S.local){ S.books.delete(id); S.moves=S.moves.filter(m=>m.bookId!==id); persist(); render(); return; }
+  await S.db.doc("books/"+id).delete();
+  for (const m of mine) await S.db.doc("moves/"+m.id).delete();
+}
+
+/* ---------- modal ---------- */
+function openModal(html, onSubmit){
+  const f=$("form"); f.innerHTML=html; $("ov").hidden=false;
+  const first=f.querySelector("input,select"); first&&first.focus();
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const err=f.querySelector(".err"); err.textContent="";
+    const btn=f.querySelector("[type=submit]"); btn.disabled=true;
+    try{ const msg = await onSubmit(f); if (msg){ closeModal(); toast(msg); } }
+    catch(e){ err.textContent = e && e.userMsg ? e.userMsg : "บันทึกไม่สำเร็จ ลองอีกครั้ง"; console.error(e); }
+    finally{ btn.disabled=false; }
+  };
+  f.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModal);
+}
+function closeModal(){ $("ov").hidden=true; $("form").innerHTML=""; }
+function fail(msg){ const e=new Error(msg); e.userMsg=msg; throw e; }
+function intVal(f,name,min){ const v=f.elements[name].value.trim(); if(!/^\d+$/.test(v)) return NaN; const n=parseInt(v,10); return n>=min?n:NaN; }
+
+function bookForm(a){
+  const cats=[...new Set([...S.books.values()].map(b=>b.category))].sort((x,y)=>x.localeCompare(y,"th"));
+  openModal(`
+    <h2>${a?"แก้ไขหนังสือ":"เพิ่มหนังสือ"}</h2>
+    <div class="field"><label for="f-cat">หมวดหนังสือ</label>
+      <input id="f-cat" name="cat" list="catlist" value="${esc(a?a.category:(S.cat!=="ทั้งหมด"?S.cat:""))}" placeholder="เช่น นิยาย, การ์ตูน, ตำราเรียน" autocomplete="off">
+      <datalist id="catlist">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist></div>
+    <div class="field"><label for="f-title">ชื่อหนังสือ</label>
+      <input id="f-title" name="title" value="${esc(a?a.title:"")}" autocomplete="off"></div>
+    <div class="field"><label for="f-stock">จำนวนตั้งต้นในสต็อก (เล่ม)</label>
+      <input id="f-stock" name="stock" type="number" inputmode="numeric" min="0" step="1" value="${a?a.stock:""}"></div>
+    <div class="field"><label for="f-date">วันที่รับเข้า</label>
+      <input id="f-date" name="date" type="date" value="${a?(a.receivedDate||""):today()}"></div>
+    ${a?`<p class="sub">ยอดรับเข้าเพิ่มภายหลังและยอดที่ใช้ไปจะคำนวณต่อจากจำนวนตั้งต้นนี้</p>`:""}
+    <p class="err" role="alert"></p>
+    <div class="mfoot">
+      ${a?`<button class="btn danger" type="button" id="delBtn" style="margin-right:auto">ลบหนังสือ</button>`:""}
+      <button class="btn" type="button" data-close>ยกเลิก</button>
+      <button class="btn primary" type="submit">บันทึก</button>
+    </div>`,
+  async f=>{
+    const category=f.elements.cat.value.trim(), title=f.elements.title.value.trim(), stock=intVal(f,"stock",0);
+    if(!category) fail("กรุณาระบุหมวดหนังสือ");
+    if(!title) fail("กรุณาระบุชื่อหนังสือ");
+    if(Number.isNaN(stock)) fail("จำนวนในสต็อกต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป");
+    const receivedDate=f.elements.date.value;
+    if(!receivedDate) fail("กรุณาระบุวันที่รับเข้า");
+    const dup=[...S.books.values()].find(b=>b.title===title && b.category===category && (!a||b.id!==a.id));
+    if(dup) fail("มีหนังสือชื่อนี้ในหมวดนี้แล้ว");
+    await saveBook(a?a.id:uid(), {category,title,stock,receivedDate,createdAt:a?.createdAt||new Date().toISOString()});
+    return a?"บันทึกการแก้ไขแล้ว":"เพิ่มหนังสือแล้ว";
+  });
+  const del=$("delBtn");
+  if(del){ let armed=false; del.onclick=async()=>{
+    if(!armed){ armed=true; del.textContent="กดอีกครั้งเพื่อยืนยันการลบ"; return; }
+    del.disabled=true;
+    try{ await removeBook(a.id); closeModal(); toast("ลบหนังสือแล้ว"); }
+    catch(e){ $("form").querySelector(".err").textContent="ลบไม่สำเร็จ ลองอีกครั้ง"; del.disabled=false; }
+  }; }
+}
+
+function moveForm(a0, kind){
+  const out = kind==="out";
+  const books = computed().filter(x=>!out || x.left>0).sort((x,y)=>x.category.localeCompare(y.category,"th")||x.title.localeCompare(y.title,"th"));
+  if(!books.length){ toast(out?"ไม่มีหนังสือที่ยังมีคงเหลือให้ตัดสต็อก":"ยังไม่มีหนังสือ กรุณาเพิ่มหนังสือก่อน"); return; }
+  const a = a0 || books[0];
+  const people=[...new Set(S.moves.map(m=>m.by).filter(Boolean))].sort((x,y)=>x.localeCompare(y,"th"));
+  openModal(`
+    <h2>${out?"ตัดสต็อก (ส่งออกหนังสือ)":"รับหนังสือเข้า"}</h2>
+    <div class="field"><label for="m-book">หนังสือ</label>
+      <select id="m-book" name="book">${books.map(b=>`<option value="${b.id}" ${b.id===a.id?"selected":""}>${esc(b.category)} · ${esc(b.title)} (คงเหลือ ${fmt(b.left)})</option>`).join("")}</select></div>
+    <div class="row2">
+      <div class="field"><label for="m-qty">${out?"จำนวนที่ต้องการตัด (เล่ม)":"จำนวนที่รับเข้า (เล่ม)"}</label>
+        <input id="m-qty" name="qty" type="number" inputmode="numeric" min="1" step="1" value="1"></div>
+      <div class="field"><label for="m-after">คงเหลือหลังบันทึก</label>
+        <input id="m-after" type="text" readonly tabindex="-1" class="num"></div>
+    </div>
+    ${out?`<div class="field"><label for="m-by">ชื่อผู้เบิก (อาจารย์)</label>
+      <input id="m-by" name="by" list="bylist" placeholder="เช่น อ.สมชาย ใจดี" autocomplete="off">
+      <datalist id="bylist">${people.map(d=>`<option value="${esc(d)}">`).join("")}</datalist></div>`:""}
+    <div class="field"><label for="m-date">${out?"วันที่ส่งออก":"วันที่รับเข้า"}</label>
+      <input id="m-date" name="date" type="date" value="${today()}"></div>
+    <div class="field"><label for="m-note">หมายเหตุ (ไม่บังคับ)</label>
+      <input id="m-note" name="note" placeholder="${out?"เช่น ชื่อผู้เบิก, ใช้ในกิจกรรมอะไร":"เช่น สั่งเพิ่มจากสำนักพิมพ์"}" autocomplete="off"></div>
+    <p class="err" role="alert"></p>
+    <div class="mfoot">
+      <button class="btn" type="button" data-close>ยกเลิก</button>
+      <button class="btn primary" type="submit">${out?"บันทึกตัดสต็อก":"บันทึกรับเข้า"}</button>
+    </div>`,
+  async f=>{
+    const cur = computed().find(x=>x.id===f.elements.book.value);
+    if(!cur) fail("ไม่พบหนังสือที่เลือก");
+    const qty=intVal(f,"qty",1);
+    if(Number.isNaN(qty)) fail("จำนวนต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
+    if(out && qty>cur.left) fail(`คงเหลือเพียง ${fmt(cur.left)} เล่ม ตัดเกินจำนวนนี้ไม่ได้`);
+    const by = out ? f.elements.by.value.trim().replace(/\s+/g," ").slice(0,100) : "";
+    if(out && !by) fail("กรุณาระบุชื่อผู้เบิก");
+    const date=f.elements.date.value;
+    if(!date) fail(out?"กรุณาระบุวันที่ส่งออก":"กรุณาระบุวันที่รับเข้า");
+    const mv={bookId:cur.id,kind,qty,date,note:f.elements.note.value.trim().slice(0,200),at:new Date().toISOString()};
+    if(out) mv.by=by;
+    await addMove(mv);
+    return out ? `ตัดสต็อก ${fmt(qty)} เล่ม ให้ ${by} แล้ว` : `รับเข้า ${fmt(qty)} เล่ม วันที่ ${fdate(date)} แล้ว`;
+  });
+  const qi=$("m-qty"), sel=$("m-book");
+  const upd=()=>{ const b=computed().find(x=>x.id===sel.value); if(!b) return; const n=parseInt(qi.value,10)||0;
+    if(out) qi.max=b.left; const after=out?b.left-n:b.left+n;
+    $("m-after").value=fmt(after)+" เล่ม"; $("m-after").style.color = after<0?"var(--bad)":""; };
+  qi.oninput=upd; sel.onchange=upd; upd();
+  if(a0) qi.select();
+}
+
+/* ---------- events ---------- */
+$("addBookBtn").onclick=()=>bookForm(null);
+$("cutBtn").onclick=()=>billForm(null);
+$("q").oninput=e=>{S.q=e.target.value; render();};
+$("sort").onchange=e=>{S.sort=e.target.value; render();};
+$("chips").onclick=e=>{const b=e.target.closest(".chip"); if(!b) return; S.cat=b.dataset.cat; render();};
+$("rows").onclick=e=>{
+  const b=e.target.closest("button[data-act]"); if(!b) return;
+  const a=computed().find(x=>x.id===b.dataset.id); if(!a) return;
+  if(b.dataset.act==="edit") bookForm(a); else if(b.dataset.act==="out") billForm(a); else moveForm(a,"in");
+};
+$("ov").onclick=e=>{ if(e.target===$("ov")) closeModal(); };
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("ov").hidden) closeModal(); });
+
+/* ---------- boot ---------- */
+render();
+(async()=>{
+  const db = window.claude ? await window.claude.use("db") : null;
+  if(!db){
+    S.local=true;
+    restore();
+    const n=$("notice"); n.hidden=false;
+    n.textContent = window.claude
+      ? "หน้านี้ยังเชื่อมต่อที่เก็บข้อมูลออนไลน์ไม่ได้ ข้อมูลจะบันทึกไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น กรุณาเข้าสู่ระบบ claude.ai แล้วเปิดหน้านี้ใหม่"
+      : "ข้อมูลบันทึกไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ถ้าล้างข้อมูลเบราว์เซอร์หรือเปิดจากเครื่องอื่นจะไม่เห็นข้อมูลชุดนี้";
+    $("empty").textContent="ยังไม่มีหนังสือในสต็อก";
+    render(); return;
+  }
+  S.db=db;
+  try{
+    const user = await window.claude.use("user");
+    const can = user ? await user.can("data.write") : null;
+    if(can===false) S.canWrite=false;
+  }catch(_){}
+  let gotBooks=false;
+  db.collection("books").onSnapshot(snap=>{
+    S.books=new Map(snap.docs.map(d=>[d.id,{id:d.id,...d.data()}])); gotBooks=true; render();
+  }, err=>{ $("notice").hidden=false; $("notice").textContent="โหลดรายการหนังสือไม่สำเร็จ ลองรีเฟรชหน้า"; console.error(err); });
+  db.collection("moves").onSnapshot(snap=>{
+    S.moves=snap.docs.map(d=>({id:d.id,...d.data()})); if(gotBooks) render();
+  }, err=>console.error(err));
+})();
+</script>
+
+</body>
+</html>
